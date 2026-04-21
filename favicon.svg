@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Icone de clima">
+  <defs>
+    <linearGradient id="bg" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1f5f9a"/>
+      <stop offset="1" stop-color="#0f1f3f"/>
+    </linearGradient>
+    <linearGradient id="sun" x1="35" y1="12" x2="52" y2="29" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffe39b"/>
+      <stop offset="1" stop-color="#ff9f1c"/>
+    </linearGradient>
+    <linearGradient id="drop" x1="27" y1="36" x2="27" y2="52" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9ed6ff"/>
+      <stop offset="1" stop-color="#4a9fe6"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#bg)"/>
+
+  <circle cx="43" cy="21" r="10" fill="url(#sun)"/>
+
+  <g fill="#f4fbff">
+    <circle cx="24" cy="33" r="8"/>
+    <circle cx="32" cy="30" r="9"/>
+    <circle cx="41" cy="33" r="7"/>
+    <rect x="18" y="33" width="30" height="10" rx="5"/>
+  </g>
+
+  <path d="M27 39C24.9 42.2 22 44.8 22 48.2C22 51.2 24.2 53.6 27 53.6C29.8 53.6 32 51.2 32 48.2C32 44.8 29.1 42.2 27 39Z" fill="url(#drop)"/>
+
+  <path d="M49 12L50.6 15.4L54 17L50.6 18.6L49 22L47.4 18.6L44 17L47.4 15.4L49 12Z" fill="#ffffff" opacity="0.9"/>
+</svg>

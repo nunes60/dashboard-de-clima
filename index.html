@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="theme-color" content="#0f172a">
+	<title>Dashboard de Clima Dinâmico</title>
+	<link rel="icon" type="image/svg+xml" href="favicon.svg">
+	<link rel="manifest" href="manifest.json">
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Spectral:wght@400;600;700&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+	<link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-default period-day">
+	<div class="weather-effects" aria-hidden="true">
+		<div class="rain-layer" id="rainLayer"></div>
+		<div class="scene-mist-layer" id="sceneMistLayer"></div>
+		<div class="scene-spark-layer" id="sceneSparkLayer"></div>
+		<div class="sun-glow"></div>
+		<div class="cloud-haze"></div>
+		<div class="moon-glow">
+			<div class="moon-disc">
+				<span class="moon-crater crater-1"></span>
+				<span class="moon-crater crater-2"></span>
+				<span class="moon-crater crater-3"></span>
+				<span class="moon-crater crater-4"></span>
+			</div>
+		</div>
+	</div>
+
+	<main class="app-shell">
+		<header class="app-header">
+			<h1 id="appTitle">Dashboard de Clima</h1>
+			<p id="appSubtitle" class="subtitle">Mood dinâmico guiado pelo clima da sua cidade.</p>
+		</header>
+
+		<section class="search-panel" aria-label="Buscar cidade">
+			<form id="weatherForm" class="search-form">
+				<label id="cityInputLabel" for="cityInput" class="sr-only">Nome da cidade</label>
+				<input
+					id="cityInput"
+					name="city"
+					type="text"
+					placeholder="Digite uma cidade..."
+					inputmode="text"
+					pattern="[A-Za-zÀ-ÖØ-öø-ÿ\s'-]+"
+					title="Use apenas letras no nome da cidade."
+					maxlength="80"
+					aria-autocomplete="list"
+					aria-controls="citySuggestions"
+					aria-expanded="false"
+					autocomplete="off"
+					required
+				>
+				<button type="submit">Buscar</button>
+				<button id="geoButton" type="button" class="geo-button">Usar localização</button>
+			</form>
+			<div id="citySuggestions" class="city-suggestions hidden" role="listbox" aria-label="Sugestões de cidades"></div>
+			<div class="preferences-row" aria-label="Preferências rápidas">
+				<label for="countryFilterSelect" class="sr-only">País padrão</label>
+				<select id="countryFilterSelect" class="prefs-select" title="País padrão">
+					<option value="BR">Brasil</option>
+					<option value="US">Estados Unidos</option>
+					<option value="PT">Portugal</option>
+					<option value="ES">Espanha</option>
+					<option value="MX">México</option>
+					<option value="AR">Argentina</option>
+					<option value="auto" selected>Global</option>
+				</select>
+				<label for="languageSelect" class="sr-only">Idioma</label>
+				<select id="languageSelect" class="prefs-select" title="Idioma">
+					<option value="pt-BR">Português (BR)</option>
+					<option value="en">English</option>
+					<option value="es">Español</option>
+					<option value="fr">Français</option>
+				</select>
+				<button id="unitToggleButton" type="button" class="prefs-button">°C | km/h</button>
+			</div>
+			<p id="statusMessage" class="status-message" role="status" aria-live="polite"></p>
+			<button id="retryButton" type="button" class="retry-button hidden">Tentar novamente</button>
+			<div class="quick-actions">
+				<button id="favoriteToggleButton" type="button" class="favorite-toggle" disabled>☆ Salvar nos favoritos</button>
+			</div>
+			<div class="share-actions">
+				<button id="shareTextButton" type="button" class="share-button" disabled>Compartilhar texto</button>
+				<button id="shareImageButton" type="button" class="share-button" disabled>Gerar imagem do card</button>
+			</div>
+		</section>
+
+		<section id="severeAlertBanner" class="severe-alert hidden" role="alert" aria-live="assertive"></section>
+		<section id="rainSmartAlert" class="rain-smart-alert hidden" aria-live="polite"></section>
+		<section id="windSmartAlert" class="wind-smart-alert hidden" aria-live="polite"></section>
+
+		<section class="weather-card" aria-label="Informações do clima">
+			<div class="weather-head">
+				<div>
+					<h2 id="cityName" data-skeleton="title">--</h2>
+					<p id="weatherDescription" data-skeleton="line">Busque uma cidade para iniciar.</p>
+				</div>
+				<img id="weatherIcon" class="weather-icon" src="" alt="" hidden>
+			</div>
+
+			<div class="weather-main">
+				<p class="temperature"><span id="temperature" data-skeleton="temp">--</span><span id="temperatureUnit" class="unit">&deg;C</span></p>
+			</div>
+
+			<div class="weather-time-info">
+				<article>
+					<h3 id="localTimeTitle">Hora local</h3>
+					<p id="localTime" data-skeleton="line">--:--</p>
+				</article>
+				<article>
+					<h3 id="sunriseTitle">Nascer do sol</h3>
+					<p id="sunriseTime" data-skeleton="line">--:--</p>
+				</article>
+				<article>
+					<h3 id="sunsetTitle">Pôr do sol</h3>
+					<p id="sunsetTime" data-skeleton="line">--:--</p>
+				</article>
+			</div>
+
+			<div class="weather-metrics">
+				<article>
+					<h3 id="feelsLikeTitle">Sensação</h3>
+					<p><span id="feelsLike" data-skeleton="value">--</span> <span id="feelsLikeUnit">&deg;C</span></p>
+				</article>
+				<article>
+					<h3 id="humidityTitle">Umidade</h3>
+					<p><span id="humidity" data-skeleton="value">--</span>%</p>
+				</article>
+				<article>
+					<h3 id="windTitle">Vento</h3>
+					<p><span id="windSpeed" data-skeleton="value">--</span> <span id="windSpeedUnit">km/h</span></p>
+				</article>
+				<article>
+					<h3 id="windGustTitle">Rajada</h3>
+					<p><span id="windGust" data-skeleton="value">--</span> <span id="windGustUnit">km/h</span></p>
+				</article>
+				<article>
+					<h3 id="pressureTitle">Pressão</h3>
+					<p><span id="pressure" data-skeleton="value">--</span> hPa</p>
+				</article>
+				<article>
+					<h3 id="visibilityTitle">Visibilidade</h3>
+					<p><span id="visibility" data-skeleton="value">--</span> km</p>
+				</article>
+				<article>
+					<h3 id="rainChanceTitle">Chance de chuva</h3>
+					<p><span id="rainChance" data-skeleton="value">--</span>%</p>
+				</article>
+				<article id="uvCard" class="uv-card uv-unknown">
+					<h3 id="uvTitle">Índice UV</h3>
+					<p><span id="uvIndex" data-skeleton="value">--</span></p>
+					<small id="uvLabel" data-skeleton="line">N/D</small>
+				</article>
+				<article id="aqiCard" class="aqi-card aqi-unknown">
+					<h3 id="aqiTitle">Qualidade do ar (AQI)</h3>
+					<p><span id="aqiValue" data-skeleton="value">--</span></p>
+					<small id="aqiLabel" data-skeleton="line">N/D</small>
+					<small id="aqiComponents" class="aqi-components" data-skeleton="line">Poluentes: N/D</small>
+				</article>
+				<article id="outdoorScoreCard" class="outdoor-score-card score-unknown">
+					<h3 id="outdoorTitle">Melhor horário para sair</h3>
+					<p><span id="outdoorBestTime" data-skeleton="value">--:--</span></p>
+					<small id="outdoorScoreLabel" data-skeleton="line">Sem recomendação no momento.</small>
+					<ul id="outdoorTopList" class="outdoor-top-list"></ul>
+				</article>
+			</div>
+		</section>
+
+		<section class="hourly-chart-section" aria-label="Gráfico das próximas horas">
+			<div class="chart-header">
+				<h2 id="hourlyTitle">Próximas 12 horas</h2>
+				<p id="hourlySubtitle">Temperatura em linha e chance de chuva em barras (intervalos de 1h).</p>
+				<p id="hourlyTapHint" class="chart-tap-hint">Toque em um ponto para ver detalhes.</p>
+			</div>
+			<div id="hourlyChart" class="hourly-chart"></div>
+		</section>
+
+		<section class="departure-assistant" aria-label="Assistente de saída">
+			<div class="departure-assistant-head">
+				<h2 id="departureAssistantTitle">Se eu sair agora...</h2>
+				<p id="departureAssistantHint">Ex: Se eu sair às 18h de moto?</p>
+			</div>
+			<form id="departureAssistantForm" class="departure-assistant-form">
+				<label id="departurePromptLabel" for="departurePromptInput" class="sr-only">Descreva sua saída</label>
+				<input
+					id="departurePromptInput"
+					type="text"
+					placeholder="Se eu sair às 18h de moto?"
+					maxlength="140"
+					autocomplete="off"
+				>
+				<button id="departureAnalyzeButton" type="submit">Analisar</button>
+			</form>
+			<div id="departureAssistantResult" class="departure-assistant-result departure-empty">Carregue uma cidade para receber recomendação objetiva de risco.</div>
+		</section>
+
+		<section class="commute-weather" aria-label="Trânsito e clima no deslocamento">
+			<div class="commute-weather-head">
+				<h2 id="commuteTitle">Trânsito + Clima no deslocamento</h2>
+				<p id="commuteSubtitle">Informe um destino para estimar ETA em tempo real e recalcular o risco da rota.</p>
+			</div>
+			<form id="commuteForm" class="commute-form">
+				<label id="commuteDestinationLabel" for="commuteDestinationInput" class="sr-only">Destino</label>
+				<input id="commuteDestinationInput" type="text" placeholder="Ex: Paulista, São Paulo" maxlength="90" autocomplete="off" aria-autocomplete="list" aria-controls="commuteDestinationSuggestions" aria-expanded="false">
+				<label id="commuteModeLabel" for="commuteModeSelect" class="sr-only">Modo de deslocamento</label>
+				<select id="commuteModeSelect">
+					<option value="departureModeGeneric">Deslocamento geral</option>
+					<option value="departureModeMotorcycle">Moto</option>
+					<option value="departureModeBike">Bicicleta</option>
+					<option value="departureModeWalking">A pé</option>
+					<option value="departureModeRunning">Corrida</option>
+					<option value="departureModeCar">Carro</option>
+					<option value="departureModeTransit">Transporte público</option>
+				</select>
+				<button id="commuteAnalyzeButton" type="submit">Calcular ETA + risco</button>
+			</form>
+			<div id="commuteDestinationSuggestions" class="city-suggestions commute-suggestions hidden" role="listbox" aria-label="Sugestões de destino"></div>
+			<div id="commuteResult" class="commute-result departure-empty">Carregue uma cidade e informe seu destino para calcular ETA e risco da rota.</div>
+		</section>
+
+		<section class="sensitivity-profile" aria-label="Perfil de sensibilidade">
+			<h2 id="sensitivityTitle">Perfil de Sensibilidade</h2>
+			<p id="sensitivitySubtitle" class="sensitivity-subtitle">Ajuste o motor de risco ao seu contexto (calor, chuva, vento ou qualidade do ar).</p>
+			<div class="sensitivity-controls">
+				<label id="sensitivitySelectLabel" for="sensitivityProfileSelect" class="sr-only">Selecionar perfil de sensibilidade</label>
+				<select id="sensitivityProfileSelect" class="sensitivity-select">
+					<option value="balanced">Equilibrado</option>
+					<option value="heat">Sensível ao calor</option>
+					<option value="rain">Sensível à chuva</option>
+					<option value="wind">Sensível ao vento</option>
+					<option value="air">Sensível à qualidade do ar</option>
+				</select>
+			</div>
+			<p id="sensitivityCurrentHint" class="sensitivity-current">Perfil ativo: equilibrado.</p>
+		</section>
+
+		<section class="safe-window" aria-live="polite">
+			<h2 id="safeWindowTitle">Janela Segura de Saída</h2>
+			<p id="safeWindowRange" class="safe-window-range">Carregue o clima para estimar a melhor janela.</p>
+			<div class="safe-window-meta">
+				<span id="safeWindowConfidence" class="safe-window-confidence is-unknown">Confiança: --</span>
+				<span id="safeWindowMode" class="safe-window-mode">Perfil: Deslocamento geral</span>
+			</div>
+			<p id="safeWindowNote" class="safe-window-note">Estimativa baseada nas próximas horas e no cenário atual.</p>
+		</section>
+
+		<section class="forecast-reliability" aria-live="polite">
+			<h2 id="forecastReliabilityTitle">Confiabilidade da previsão</h2>
+			<p id="forecastReliabilitySubtitle" class="forecast-reliability-subtitle">Score por janela horária com explicação dos fatores usados.</p>
+			<ul id="forecastReliabilityList" class="forecast-reliability-list">
+				<li>Carregue uma cidade para calcular a confiabilidade.</li>
+			</ul>
+		</section>
+
+		<section class="rain-radar" aria-live="polite">
+			<div class="rain-radar-head">
+				<h2 id="rainRadarTitle">Radar de chuva</h2>
+				<p id="rainRadarSubtitle">Overlay animado para leitura rápida das próximas horas.</p>
+			</div>
+			<div class="rain-radar-meta">
+				<span id="rainRadarFrameLabel" class="rain-radar-frame-label">Frame: --</span>
+				<span id="rainRadarStatus" class="rain-radar-status">Carregue uma cidade para iniciar o radar.</span>
+			</div>
+			<div id="rainRadarMap" class="rain-radar-map" role="img" aria-label="Mapa com radar de chuva"></div>
+			<ul id="rainRadarPreviewList" class="rain-radar-preview-list">
+				<li>Sem dados de chuva para exibir.</li>
+			</ul>
+		</section>
+
+		<section class="daily-summary" aria-live="polite">
+			<h2 id="dailySummaryTitle">Resumo do dia</h2>
+			<p id="dailySummaryText">Busque uma cidade para gerar um resumo em linguagem simples.</p>
+			<ul id="dailySummaryList" class="daily-summary-list hidden" aria-label="Resumo visual por período"></ul>
+		</section>
+
+		<section class="health-context" aria-live="polite">
+			<h2 id="healthContextTitle">Contexto de Saúde</h2>
+			<article id="exposureIndexCard" class="exposure-index-card">
+				<div class="exposure-index-head">
+					<strong id="exposureIndexTitle">Índice de Exposição</strong>
+					<span id="exposureIndexBadge" class="exposure-index-badge is-unknown">--</span>
+				</div>
+				<p id="exposureIndexSummary" class="exposure-index-summary">Carregue uma cidade para calcular o índice de exposição.</p>
+				<ul id="exposureIndexDrivers" class="exposure-index-drivers">
+					<li>Aguardando dados de saúde e atmosfera.</li>
+				</ul>
+			</article>
+			<ul id="healthContextList" class="health-context-list">
+				<li>Carregue uma cidade para ver gatilhos de saúde.</li>
+			</ul>
+		</section>
+
+		<section class="weekly-insights" aria-live="polite">
+			<h2 id="weeklyInsightsTitle">Insights Semanais</h2>
+			<article class="weekly-narrative">
+				<h3 id="weeklyNarrativeTitle">Narrativa da semana</h3>
+				<p id="weeklyNarrativeText" class="weekly-narrative-text">Carregue uma cidade para gerar a narrativa cinematográfica da semana.</p>
+			</article>
+			<ul id="weeklyInsightsList" class="weekly-insights-list">
+				<li>Carregue uma cidade para gerar insights da semana.</li>
+			</ul>
+		</section>
+
+		<section class="cinematic-scene" aria-live="polite">
+			<div class="cinematic-scene-head">
+				<h2 id="cinematicSceneTitle">Cena do dia</h2>
+				<span id="cinematicSceneTag" class="cinematic-scene-tag is-default">Atmosfera atual</span>
+			</div>
+			<p id="cinematicSceneNarrative" class="cinematic-scene-narrative">Carregue o clima para ver a narrativa visual do momento.</p>
+			<p id="cinematicSceneScore" class="cinematic-scene-score">Score contextual: --/100</p>
+			<div class="cinematic-scene-why">
+				<strong id="cinematicSceneWhyTitle">Por que essa cena?</strong>
+				<p id="cinematicSceneReason" class="cinematic-scene-reason">Chuva, vento, UV, AQI e variação térmica entram no cálculo da cena.</p>
+			</div>
+			<p id="cinematicSceneRecommendation" class="cinematic-scene-recommendation">Recomendação: carregue o clima para receber uma orientação rápida.</p>
+			<div class="cinematic-scene-timeline-wrap">
+				<strong id="cinematicSceneTimelineTitle">Linha do tempo de cena</strong>
+				<ul id="cinematicSceneTimeline" class="cinematic-scene-timeline-list">
+					<li>Carregue uma cidade para ver +3h, +6h e +12h.</li>
+				</ul>
+			</div>
+		</section>
+
+		<section class="forecast-section" aria-label="Previsão para cinco dias">
+			<div class="forecast-header">
+				<h2 id="forecastTitle">Previsão para 5 dias</h2>
+				<p id="forecastSubtitle" class="forecast-subtitle">Mini-cards por período: manhã, tarde e noite.</p>
+			</div>
+			<div id="forecastList" class="forecast-list"></div>
+		</section>
+
+		<section class="compare-section" aria-label="Comparar cidades">
+			<div class="compare-header">
+				<h2 id="compareTitle">Comparar cidades</h2>
+				<p id="compareSubtitle">Veja o clima atual da cidade em tela contra outra cidade.</p>
+			</div>
+			<form id="compareForm" class="compare-form">
+				<label id="compareCityInputLabel" for="compareCityInput" class="sr-only">Cidade para comparar</label>
+				<input
+					id="compareCityInput"
+					type="text"
+					placeholder="Digite outra cidade..."
+					maxlength="80"
+					autocomplete="off"
+					aria-autocomplete="list"
+					aria-controls="compareCitySuggestions"
+					aria-expanded="false"
+					required
+				>
+				<button id="compareButton" type="submit">Comparar</button>
+			</form>
+			<div id="compareCitySuggestions" class="city-suggestions compare-city-suggestions hidden" role="listbox" aria-label="Sugestões de cidades para comparação"></div>
+			<div id="compareResult" class="compare-result compare-empty">Escolha uma cidade para comparar.</div>
+		</section>
+
+		<section class="saved-searches" aria-label="Favoritos e histórico">
+			<article class="saved-card">
+				<div class="saved-header">
+					<h2 id="favoritesTitle">Favoritos</h2>
+				</div>
+				<div id="favoritesList" class="chip-list"></div>
+			</article>
+			<article class="saved-card">
+				<div class="saved-header">
+					<h2 id="historyTitle">Histórico</h2>
+					<button id="clearHistoryButton" type="button" class="clear-history-button">Limpar</button>
+				</div>
+				<div id="historyList" class="chip-list"></div>
+			</article>
+		</section>
+
+		<section class="travel-time-section" aria-label="Horários em outras cidades">
+			<div class="travel-time-header">
+				<h2 id="travelTimeTitle">Modo viagem/fuso</h2>
+				<p id="travelTimeSubtitle">Horário local em tempo real das cidades favoritas.</p>
+			</div>
+			<div id="travelTimeList" class="travel-time-list">
+				<p id="travelTimeEmpty" class="travel-time-empty">Adicione cidades aos favoritos para acompanhar fusos.</p>
+			</div>
+		</section>
+	</main>
+
+	<footer class="page-author" aria-label="Crédito de autoria">Autor: Nunes</footer>
+
+	<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+	<script>
+		window.__WEATHER_PROXY_BASE__ = window.__WEATHER_PROXY_BASE__ || "";
+	</script>
+	<script src="script.js"></script>
+</body>
+</html>
