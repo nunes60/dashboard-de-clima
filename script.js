@@ -68,6 +68,47 @@ const FEATURE_FLAGS_DEFAULT = Object.freeze({
     enableErrorObservability: true,
     enableServiceWorker: true
 });
+const CONTINENT_COUNTRY_GROUPS = Object.freeze({
+    africa: [
+        "DZ", "AO", "BJ", "BW", "BF", "BI", "CM", "CV", "CF", "TD", "KM", "CG", "CD", "CI", "DJ",
+        "EG", "GQ", "ER", "SZ", "ET", "GA", "GM", "GH", "GN", "GW", "KE", "LS", "LR", "LY",
+        "MG", "MW", "ML", "MR", "MU", "MA", "MZ", "NA", "NE", "NG", "RW", "ST", "SN", "SC",
+        "SL", "SO", "ZA", "SS", "SD", "TZ", "TG", "TN", "UG", "EH", "ZM", "ZW", "RE", "YT",
+        "SH", "IO"
+    ],
+    "north-america": [
+        "AG", "AI", "AW", "BB", "BL", "BM", "BQ", "BS", "BZ", "CA", "CR", "CU", "CW", "DM",
+        "DO", "GD", "GL", "GP", "GT", "HN", "HT", "JM", "KN", "KY", "LC", "MF", "MQ", "MS",
+        "MX", "NI", "PA", "PM", "PR", "SV", "SX", "TC", "TT", "US", "VC", "VG", "VI"
+    ],
+    "south-america": [
+        "AR", "BO", "BR", "CL", "CO", "EC", "FK", "GF", "GY", "PE", "PY", "SR", "UY", "VE", "GS"
+    ],
+    europe: [
+        "AD", "AL", "AT", "AX", "BA", "BE", "BG", "BY", "CH", "CY", "CZ", "DE", "DK", "EE",
+        "ES", "FI", "FO", "FR", "GB", "GG", "GI", "GR", "HR", "HU", "IE", "IM", "IS", "IT",
+        "JE", "LI", "LT", "LU", "LV", "MC", "MD", "ME", "MK", "MT", "NL", "NO", "PL", "PT",
+        "RO", "RS", "RU", "SE", "SI", "SK", "SM", "SJ", "UA", "VA", "XK"
+    ],
+    asia: [
+        "AE", "AF", "AM", "AZ", "BD", "BH", "BN", "BT", "CN", "GE", "HK", "ID", "IL", "IN",
+        "IQ", "IR", "JO", "JP", "KG", "KH", "KP", "KR", "KW", "KZ", "LA", "LB", "LK", "MM",
+        "MN", "MO", "MV", "MY", "NP", "OM", "PH", "PK", "PS", "QA", "SA", "SG", "SY", "TH",
+        "TJ", "TL", "TM", "TR", "TW", "UZ", "VN", "YE"
+    ],
+    oceania: [
+        "AS", "AU", "CC", "CK", "CX", "FJ", "FM", "GU", "HM", "KI", "MH", "MP", "NC", "NF",
+        "NR", "NU", "NZ", "PF", "PG", "PN", "PW", "SB", "TK", "TO", "TV", "UM", "VU", "WF",
+        "WS"
+    ]
+});
+const CONTINENT_FILTERS = new Set(Object.keys(CONTINENT_COUNTRY_GROUPS));
+const CONTINENT_BY_COUNTRY = Object.freeze(Object.entries(CONTINENT_COUNTRY_GROUPS).reduce((acc, [continent, codes]) => {
+    codes.forEach((code) => {
+        acc[code] = continent;
+    });
+    return acc;
+}, {}));
 
 const form = document.getElementById("weatherForm");
 const cityInput = document.getElementById("cityInput");
@@ -1524,6 +1565,20 @@ function normalizeCityToken(value) {
         .replace(/[\u0300-\u036f]/g, "");
 }
 
+function normalizeCountryCode(value) {
+    return String(value || "").trim().toUpperCase();
+}
+
+function getContinentForCountry(countryCode) {
+    const normalizedCode = normalizeCountryCode(countryCode);
+    return CONTINENT_BY_COUNTRY[normalizedCode] || null;
+}
+
+function getNormalizedContinentFilter(value) {
+    const normalizedValue = normalizeCityToken(value);
+    return CONTINENT_FILTERS.has(normalizedValue) ? normalizedValue : null;
+}
+
 function loadPreferences() {
     currentCountryFilter = "auto";
     currentUnits = getStoredPreference(STORAGE_KEY_UNITS, "metric");
@@ -1817,12 +1872,12 @@ function applyLanguageToStaticUI() {
 
 function updateCountryFilterOptionsLabel() {
     const labelMap = {
-        BR: t("countryBrazil"),
-        US: t("countryUS"),
-        PT: t("countryPortugal"),
-        ES: t("countrySpain"),
-        MX: t("countryMexico"),
-        AR: t("countryArgentina"),
+        africa: t("continentAfrica"),
+        "north-america": t("continentNorthAmerica"),
+        "south-america": t("continentSouthAmerica"),
+        europe: t("continentEurope"),
+        asia: t("continentAsia"),
+        oceania: t("continentOceania"),
         auto: t("countryGlobal")
     };
 
@@ -2549,10 +2604,18 @@ async function fetchCitySuggestions(query, options = {}) {
 
         const seen = new Set();
         const normalizedQuery = normalizeCityToken(query);
+        const continentFilter = getNormalizedContinentFilter(countryFilter);
         const preferenceTokens = buildSuggestionPreferenceTokens();
         const suggestions = payload
             .map((item) => createCitySuggestion(item))
             .filter(Boolean)
+            .filter((item) => {
+                if (!continentFilter) {
+                    return true;
+                }
+                const suggestionContinent = getContinentForCountry(item.country);
+                return !suggestionContinent || suggestionContinent === continentFilter;
+            })
             .filter((item) => {
                 const key = `${item.name}|${item.state}|${item.country}|${item.lat.toFixed(4)}|${item.lon.toFixed(4)}`;
                 if (seen.has(key)) {
@@ -2564,8 +2627,8 @@ async function fetchCitySuggestions(query, options = {}) {
             });
 
         return suggestions.sort((itemA, itemB) => {
-            const scoreA = getSuggestionScoreForQuery(itemA, normalizedQuery, preferenceTokens, normalizeCityToken(countryFilter));
-            const scoreB = getSuggestionScoreForQuery(itemB, normalizedQuery, preferenceTokens, normalizeCityToken(countryFilter));
+            const scoreA = getSuggestionScoreForQuery(itemA, normalizedQuery, preferenceTokens, countryFilter);
+            const scoreB = getSuggestionScoreForQuery(itemB, normalizedQuery, preferenceTokens, countryFilter);
             return scoreB - scoreA;
         }).slice(0, suggestionLimit);
     } catch {
@@ -2583,6 +2646,10 @@ function buildGeocodingQuery(query, countryFilter = currentCountryFilter) {
         return cleanQuery;
     }
 
+    if (getNormalizedContinentFilter(countryFilter)) {
+        return cleanQuery;
+    }
+
     return `${cleanQuery},${countryFilter}`;
 }
 
@@ -2593,6 +2660,10 @@ function buildWeatherCityQuery(city) {
     }
 
     if (!currentCountryFilter || currentCountryFilter === "auto") {
+        return cleanCity;
+    }
+
+    if (getNormalizedContinentFilter(currentCountryFilter)) {
         return cleanCity;
     }
 
@@ -2613,11 +2684,13 @@ function buildSuggestionPreferenceTokens() {
     };
 }
 
-function getSuggestionScoreForQuery(suggestion, normalizedQuery, preferenceTokens = null, preferredCountryToken = normalizeCityToken(currentCountryFilter)) {
+function getSuggestionScoreForQuery(suggestion, normalizedQuery, preferenceTokens = null, preferredFilter = currentCountryFilter) {
     const normalizedName = normalizeCityToken(suggestion?.name);
     const normalizedState = normalizeCityToken(suggestion?.state);
     const normalizedCountry = normalizeCityToken(suggestion?.country);
-    const normalizedPreferredCountry = preferredCountryToken;
+    const normalizedPreferredFilter = normalizeCityToken(preferredFilter);
+    const preferredContinent = getNormalizedContinentFilter(normalizedPreferredFilter);
+    const suggestionContinent = preferredContinent ? getContinentForCountry(suggestion?.country) : null;
 
     let score = 0;
 
@@ -2629,7 +2702,11 @@ function getSuggestionScoreForQuery(suggestion, normalizedQuery, preferenceToken
         score += 35;
     }
 
-    if (normalizedPreferredCountry && normalizedPreferredCountry !== "auto" && normalizedCountry === normalizedPreferredCountry) {
+    if (preferredContinent) {
+        if (suggestionContinent && suggestionContinent === preferredContinent) {
+            score += 15;
+        }
+    } else if (normalizedPreferredFilter && normalizedPreferredFilter !== "auto" && normalizedCountry === normalizedPreferredFilter) {
         score += 15;
     }
 
@@ -3476,16 +3553,141 @@ async function handleShareImage() {
     setStatus(t("shareImageGenerating"), "loading");
 
     try {
-        const { sceneEl, captureBackgroundColor, dispose } = createShareCaptureScene();
+        const { sceneEl, captureBackgroundColor, dispose } = await createShareCaptureScene();
         let canvas;
 
         try {
-            canvas = await window.html2canvas(sceneEl, {
-                backgroundColor: captureBackgroundColor,
-                scale: 2,
-                useCORS: true,
-                logging: false
-            });
+            try {
+                canvas = await window.html2canvas(sceneEl, {
+                    backgroundColor: captureBackgroundColor,
+                    scale: 2,
+                    useCORS: true,
+                    logging: false,
+                    onclone: (clonedDoc) => {
+                        try {
+                            const rootId = sceneEl.id;
+                            const clonedRoot = clonedDoc.getElementById(rootId);
+                            const originalRoot = document.getElementById(rootId);
+                            if (!clonedRoot || !originalRoot) return;
+
+                            const originals = [originalRoot].concat(Array.from(originalRoot.querySelectorAll("*")));
+                            const clones = [clonedRoot].concat(Array.from(clonedRoot.querySelectorAll("*")));
+                            const propsToCopy = [
+                                "background-color",
+                                "color",
+                                "border-color",
+                                "box-shadow",
+                                "font-family",
+                                "font-size",
+                                "padding",
+                                "margin",
+                                "border-radius",
+                                "border-width",
+                                "border-style",
+                                "line-height",
+                                "text-transform",
+                                "font-weight",
+                                "letter-spacing",
+                                "text-align",
+                                "vertical-align"
+                            ];
+
+                            for (let i = 0; i < Math.min(originals.length, clones.length); i++) {
+                                const o = originals[i];
+                                const c = clones[i];
+                                if (!o || !c) continue;
+                                const computed = window.getComputedStyle(o);
+                                propsToCopy.forEach((prop) => {
+                                    try {
+                                        const val = computed.getPropertyValue(prop);
+                                        if (val) c.style.setProperty(prop, val);
+                                    } catch (e) {
+                                        // ignore
+                                    }
+                                });
+
+                                // Remove potential problematic properties
+                                c.style.setProperty("background-image", "none");
+                                c.style.setProperty("box-shadow", "none");
+                                c.style.setProperty("filter", "none");
+                                c.style.setProperty("-webkit-backdrop-filter", "none");
+                                c.style.setProperty("backdrop-filter", "none");
+                            }
+                        } catch (e) {
+                            console.warn("onclone sanitization failed:", e);
+                        }
+                    }
+                });
+            } catch (firstError) {
+                // Log first attempt and try a more permissive fallback
+                console.warn("html2canvas first attempt failed, retrying with fallback options:", firstError);
+                try {
+                    canvas = await window.html2canvas(sceneEl, {
+                        backgroundColor: captureBackgroundColor,
+                        scale: 1,
+                        useCORS: false,
+                        allowTaint: true,
+                        logging: false,
+                        onclone: (clonedDoc) => {
+                            try {
+                                const rootId = sceneEl.id;
+                                const clonedRoot = clonedDoc.getElementById(rootId);
+                                const originalRoot = document.getElementById(rootId);
+                                if (!clonedRoot || !originalRoot) return;
+
+                                const originals = [originalRoot].concat(Array.from(originalRoot.querySelectorAll("*")));
+                                const clones = [clonedRoot].concat(Array.from(clonedRoot.querySelectorAll("*")));
+                                const propsToCopy = [
+                                    "background-color",
+                                    "color",
+                                    "border-color",
+                                    "box-shadow",
+                                    "font-family",
+                                    "font-size",
+                                    "padding",
+                                    "margin",
+                                    "border-radius",
+                                    "border-width",
+                                    "border-style",
+                                    "line-height",
+                                    "text-transform",
+                                    "font-weight",
+                                    "letter-spacing",
+                                    "text-align",
+                                    "vertical-align"
+                                ];
+
+                                for (let i = 0; i < Math.min(originals.length, clones.length); i++) {
+                                    const o = originals[i];
+                                    const c = clones[i];
+                                    if (!o || !c) continue;
+                                    const computed = window.getComputedStyle(o);
+                                    propsToCopy.forEach((prop) => {
+                                        try {
+                                            const val = computed.getPropertyValue(prop);
+                                            if (val) c.style.setProperty(prop, val);
+                                        } catch (e) {
+                                            // ignore
+                                        }
+                                    });
+
+                                    c.style.setProperty("background-image", "none");
+                                    c.style.setProperty("box-shadow", "none");
+                                    c.style.setProperty("filter", "none");
+                                    c.style.setProperty("-webkit-backdrop-filter", "none");
+                                    c.style.setProperty("backdrop-filter", "none");
+                                }
+                            } catch (e) {
+                                console.warn("onclone fallback sanitization failed:", e);
+                            }
+                        }
+                    });
+                } catch (secondError) {
+                    // rethrow the original error chain for outer catch
+                    firstError.__fallback = secondError;
+                    throw firstError;
+                }
+            }
         } finally {
             dispose();
         }
@@ -3516,6 +3718,7 @@ async function handleShareImage() {
         if (error?.name === "AbortError") {
             return;
         }
+        console.error("Failed to generate share image:", error);
         setStatus(t("shareImageError"), "error");
     }
 }
@@ -3756,7 +3959,47 @@ function resetCompareState() {
     compareResultEl.textContent = t("compareEmpty");
 }
 
-function createShareCaptureScene() {
+async function fetchImageAsDataUrl(url) {
+    if (!url) {
+        return null;
+    }
+
+    const response = await fetch(url, { mode: "cors", cache: "force-cache" });
+    if (!response.ok) {
+        return null;
+    }
+
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : null);
+        reader.onerror = () => reject(reader.error || new Error("share-image-read-failed"));
+        reader.readAsDataURL(blob);
+    });
+}
+
+async function inlineImageForCapture(imageEl) {
+    if (!imageEl || !imageEl.src || imageEl.hidden) {
+        return;
+    }
+
+    imageEl.setAttribute("crossorigin", "anonymous");
+    imageEl.referrerPolicy = "no-referrer";
+
+    try {
+        const dataUrl = await fetchImageAsDataUrl(imageEl.src);
+        if (dataUrl) {
+            imageEl.src = dataUrl;
+            return;
+        }
+    } catch {
+        // Ignore and fallback below.
+    }
+
+    imageEl.remove();
+}
+
+async function createShareCaptureScene() {
     const bodyStyles = window.getComputedStyle(document.body);
     const cardBounds = weatherCardEl.getBoundingClientRect();
     const sceneWidth = Math.max(340, Math.min(920, Math.ceil(cardBounds.width + 90)));
@@ -3786,6 +4029,87 @@ function createShareCaptureScene() {
     cardClone.style.backgroundClip = "padding-box";
     cardClone.style.backdropFilter = "none";
     cardClone.style.webkitBackdropFilter = "none";
+
+    // Copy computed (resolved) styles from the original card to the clone to avoid css() functions
+    // (like `color()` or `color-mix`) that html2canvas cannot parse when styles rely on CSS functions.
+    function applyResolvedStylesFromSourceToTarget(sourceRoot, targetRoot) {
+        const sourceNodes = [sourceRoot].concat(Array.from(sourceRoot.querySelectorAll("*")));
+        const targetNodes = [targetRoot].concat(Array.from(targetRoot.querySelectorAll("*")));
+        const len = Math.min(sourceNodes.length, targetNodes.length);
+        const propsToCopy = [
+            "background-color",
+            "color",
+            "border-color",
+            "box-shadow",
+            "font-family",
+            "font-size",
+            "padding",
+            "margin",
+            "border-radius",
+            "border-width",
+            "border-style",
+            "line-height",
+            "width",
+            "height",
+            "text-transform",
+            "font-weight",
+            "letter-spacing",
+            "text-align",
+            "vertical-align"
+        ];
+
+        for (let i = 0; i < len; i++) {
+            try {
+                const src = sourceNodes[i];
+                const tgt = targetNodes[i];
+                const computed = window.getComputedStyle(src);
+
+                // Apply a safe set of resolved properties
+                propsToCopy.forEach((prop) => {
+                    const val = computed.getPropertyValue(prop);
+                    if (val) {
+                        tgt.style.setProperty(prop, val);
+                    }
+                });
+
+                // Force background-image removal (gradients often break html2canvas)
+                tgt.style.setProperty("background-image", "none");
+                // Ensure background-color is present
+                const bg = computed.getPropertyValue("background-color");
+                if (bg) {
+                    tgt.style.setProperty("background-color", bg);
+                }
+            } catch (e) {
+                // ignore per-node failures
+            }
+        }
+    }
+
+    applyResolvedStylesFromSourceToTarget(weatherCardEl, cardClone);
+
+    // Inline all images inside the cloned card to avoid CORS tainting during canvas capture.
+    const images = Array.from(cardClone.querySelectorAll("img"));
+    await Promise.all(images.map((img) => inlineImageForCapture(img)));
+
+    // Inject an overriding stylesheet into the scene to neutralize complex CSS functions
+    // (gradients, color-mix(), filters, pseudo-elements) which html2canvas can fail to parse.
+    const overrideStyle = document.createElement("style");
+    overrideStyle.textContent = `
+        #${sceneEl.id} *, #${sceneEl.id} *::before, #${sceneEl.id} *::after {
+            background-image: none !important;
+            background: none !important;
+            box-shadow: none !important;
+            filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            backdrop-filter: none !important;
+            content: none !important;
+        }
+    `;
+    // Give sceneEl an id so the style is scoped reliably
+    if (!sceneEl.id) {
+        sceneEl.id = `share-capture-scene-${Date.now()}`;
+    }
+    sceneEl.appendChild(overrideStyle);
 
     if (currentSharePayload?.sceneTag || currentSharePayload?.sceneRecommendation) {
         const cinematicBlock = document.createElement("div");
@@ -8886,6 +9210,8 @@ function extractRainChanceFromForecast(forecastData, referenceTimestamp, oneCall
 
 function updateIcon(iconCode, weatherMain) {
     const iconUrl = `https://openweathermap.org/img/wn/${iconCode}@2x.png`;
+    weatherIconEl.setAttribute("crossorigin", "anonymous");
+    weatherIconEl.referrerPolicy = "no-referrer";
     weatherIconEl.src = iconUrl;
     weatherIconEl.alt = t("weatherIconAlt", { weatherMain });
     weatherIconEl.hidden = false;
