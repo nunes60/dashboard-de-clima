@@ -19,6 +19,6 @@ expectContains(js, "function applyThemeByCondition", "Dynamic visual theme engin
 expectContains(js, "function extractRainChanceFromForecast", "Rain chance extractor");
 expectContains(js, "applyAdaptiveLayoutMode", "Adaptive layout mode handler");
 expectContains(sw, "request.mode === \"navigate\"", "Navigation-only offline fallback");
-expectContains(sw, "weather-static-v3", "Updated static cache version");
+expectContains(sw, "weather-static-v4", "Updated static cache version");
 
 console.log("Smoke static checks passed.");

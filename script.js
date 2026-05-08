@@ -1042,7 +1042,10 @@ async function registerServiceWorkerIfEnabled() {
     }
 
     try {
-        await navigator.serviceWorker.register("./service-worker.js");
+        const registration = await navigator.serviceWorker.register("./service-worker.js", {
+            updateViaCache: "none"
+        });
+        await registration.update();
         trackTelemetry("service-worker-registered");
     } catch (error) {
         reportAppError("service-worker-register", error);

@@ -1,5 +1,5 @@
-const STATIC_CACHE_NAME = "weather-static-v3";
-const RUNTIME_CACHE_NAME = "weather-runtime-v3";
+const STATIC_CACHE_NAME = "weather-static-v4";
+const RUNTIME_CACHE_NAME = "weather-runtime-v4";
 const OFFLINE_SHELL = "./index.html";
 
 const STATIC_ASSETS = [
@@ -57,9 +57,15 @@ self.addEventListener("fetch", (event) => {
             return;
         }
 
+        const isLocaleAsset = requestUrl.pathname.startsWith("/locales/") && requestUrl.pathname.endsWith(".json");
+
+        if (isLocaleAsset) {
+            event.respondWith(networkFirst(request, STATIC_CACHE_NAME));
+            return;
+        }
+
         const isStaticAsset = requestUrl.pathname.endsWith(".svg")
-            || requestUrl.pathname.endsWith(".json")
-            || requestUrl.pathname.startsWith("/locales/");
+            || requestUrl.pathname.endsWith(".json");
 
         if (isStaticAsset) {
             event.respondWith(cacheFirst(request, STATIC_CACHE_NAME));
