@@ -103,6 +103,14 @@ const CONTINENT_COUNTRY_GROUPS = Object.freeze({
     ]
 });
 const CONTINENT_FILTERS = new Set(Object.keys(CONTINENT_COUNTRY_GROUPS));
+const CONTINENT_LABEL_KEYS = Object.freeze({
+    africa: "continentAfrica",
+    "north-america": "continentNorthAmerica",
+    "south-america": "continentSouthAmerica",
+    europe: "continentEurope",
+    asia: "continentAsia",
+    oceania: "continentOceania"
+});
 const CONTINENT_BY_COUNTRY = Object.freeze(Object.entries(CONTINENT_COUNTRY_GROUPS).reduce((acc, [continent, codes]) => {
     codes.forEach((code) => {
         acc[code] = continent;
@@ -121,7 +129,6 @@ const retryButton = document.getElementById("retryButton");
 const favoriteToggleButton = document.getElementById("favoriteToggleButton");
 const clearHistoryButton = document.getElementById("clearHistoryButton");
 const shareTextButton = document.getElementById("shareTextButton");
-const shareImageButton = document.getElementById("shareImageButton");
 const searchButton = form.querySelector('button[type="submit"]');
 const compareForm = document.getElementById("compareForm");
 const compareCityInput = document.getElementById("compareCityInput");
@@ -1157,7 +1164,6 @@ function bindEvents() {
     favoriteToggleButton.addEventListener("click", handleFavoriteToggle);
     clearHistoryButton.addEventListener("click", clearHistory);
     shareTextButton.addEventListener("click", handleShareText);
-    shareImageButton.addEventListener("click", handleShareImage);
     unitToggleButton.addEventListener("click", handleUnitToggle);
     countryFilterSelect.addEventListener("change", handleCountryFilterChange);
     languageSelect.addEventListener("change", handleLanguageChange);
@@ -1579,6 +1585,38 @@ function getNormalizedContinentFilter(value) {
     return CONTINENT_FILTERS.has(normalizedValue) ? normalizedValue : null;
 }
 
+function getLocalizedContinentLabel(value) {
+    const normalizedValue = normalizeCityToken(value);
+
+    if (!normalizedValue) {
+        return "";
+    }
+
+    if (normalizedValue === "auto") {
+        return t("countryGlobal");
+    }
+
+    const continentKey = CONTINENT_LABEL_KEYS[normalizedValue] || normalizedValue;
+    const translatedLabel = t(continentKey);
+
+    if (translatedLabel && translatedLabel !== continentKey) {
+        return translatedLabel;
+    }
+
+    if (continentKey !== normalizedValue) {
+        const rawTranslatedLabel = t(normalizedValue);
+        if (rawTranslatedLabel && rawTranslatedLabel !== normalizedValue) {
+            return rawTranslatedLabel;
+        }
+    }
+
+    return normalizedValue
+        .split(/[-_]/)
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ");
+}
+
 function loadPreferences() {
     currentCountryFilter = "auto";
     currentUnits = getStoredPreference(STORAGE_KEY_UNITS, "metric");
@@ -1776,7 +1814,6 @@ function applyLanguageToStaticUI() {
     geoButton.textContent = t("useLocationButton");
     retryButton.textContent = t("retryButton");
     shareTextButton.textContent = t("shareTextButton");
-    shareImageButton.textContent = t("shareImageButton");
     dailySummaryTitleEl.textContent = t("dailySummaryTitle");
     dailySummaryListEl.setAttribute("aria-label", t("dailySummaryVisualLabel"));
     cinematicSceneTitleEl.textContent = t("cinematicSceneTitle");
@@ -1871,18 +1908,20 @@ function applyLanguageToStaticUI() {
 }
 
 function updateCountryFilterOptionsLabel() {
-    const labelMap = {
-        africa: t("continentAfrica"),
-        "north-america": t("continentNorthAmerica"),
-        "south-america": t("continentSouthAmerica"),
-        europe: t("continentEurope"),
-        asia: t("continentAsia"),
-        oceania: t("continentOceania"),
-        auto: t("countryGlobal")
-    };
+    try {
+        console.debug(`[i18n] updateCountryFilterOptionsLabel currentLanguage=${currentLanguage}`, { activeCount: Object.keys(activeTranslations).length, fallbackCount: Object.keys(fallbackTranslations).length });
+    } catch (e) {
+        // ignore
+    }
 
     Array.from(countryFilterSelect.options).forEach((option) => {
-        option.textContent = labelMap[option.value] || option.textContent;
+        const value = String(option.value || "");
+        const label = getLocalizedContinentLabel(value);
+
+        if (label) {
+            option.textContent = label;
+            option.label = label;
+        }
     });
 }
 
@@ -3539,190 +3578,6 @@ async function handleShareText() {
     }
 }
 
-async function handleShareImage() {
-    if (!currentSharePayload) {
-        setStatus(t("shareNeedWeatherImage"), "error");
-        return;
-    }
-
-    if (typeof window.html2canvas !== "function") {
-        setStatus(t("shareImageMissingLib"), "error");
-        return;
-    }
-
-    setStatus(t("shareImageGenerating"), "loading");
-
-    try {
-        const { sceneEl, captureBackgroundColor, dispose } = await createShareCaptureScene();
-        let canvas;
-
-        try {
-            try {
-                canvas = await window.html2canvas(sceneEl, {
-                    backgroundColor: captureBackgroundColor,
-                    scale: 2,
-                    useCORS: true,
-                    logging: false,
-                    onclone: (clonedDoc) => {
-                        try {
-                            const rootId = sceneEl.id;
-                            const clonedRoot = clonedDoc.getElementById(rootId);
-                            const originalRoot = document.getElementById(rootId);
-                            if (!clonedRoot || !originalRoot) return;
-
-                            const originals = [originalRoot].concat(Array.from(originalRoot.querySelectorAll("*")));
-                            const clones = [clonedRoot].concat(Array.from(clonedRoot.querySelectorAll("*")));
-                            const propsToCopy = [
-                                "background-color",
-                                "color",
-                                "border-color",
-                                "box-shadow",
-                                "font-family",
-                                "font-size",
-                                "padding",
-                                "margin",
-                                "border-radius",
-                                "border-width",
-                                "border-style",
-                                "line-height",
-                                "text-transform",
-                                "font-weight",
-                                "letter-spacing",
-                                "text-align",
-                                "vertical-align"
-                            ];
-
-                            for (let i = 0; i < Math.min(originals.length, clones.length); i++) {
-                                const o = originals[i];
-                                const c = clones[i];
-                                if (!o || !c) continue;
-                                const computed = window.getComputedStyle(o);
-                                propsToCopy.forEach((prop) => {
-                                    try {
-                                        const val = computed.getPropertyValue(prop);
-                                        if (val) c.style.setProperty(prop, val);
-                                    } catch (e) {
-                                        // ignore
-                                    }
-                                });
-
-                                // Remove potential problematic properties
-                                c.style.setProperty("background-image", "none");
-                                c.style.setProperty("box-shadow", "none");
-                                c.style.setProperty("filter", "none");
-                                c.style.setProperty("-webkit-backdrop-filter", "none");
-                                c.style.setProperty("backdrop-filter", "none");
-                            }
-                        } catch (e) {
-                            console.warn("onclone sanitization failed:", e);
-                        }
-                    }
-                });
-            } catch (firstError) {
-                // Log first attempt and try a more permissive fallback
-                console.warn("html2canvas first attempt failed, retrying with fallback options:", firstError);
-                try {
-                    canvas = await window.html2canvas(sceneEl, {
-                        backgroundColor: captureBackgroundColor,
-                        scale: 1,
-                        useCORS: false,
-                        allowTaint: true,
-                        logging: false,
-                        onclone: (clonedDoc) => {
-                            try {
-                                const rootId = sceneEl.id;
-                                const clonedRoot = clonedDoc.getElementById(rootId);
-                                const originalRoot = document.getElementById(rootId);
-                                if (!clonedRoot || !originalRoot) return;
-
-                                const originals = [originalRoot].concat(Array.from(originalRoot.querySelectorAll("*")));
-                                const clones = [clonedRoot].concat(Array.from(clonedRoot.querySelectorAll("*")));
-                                const propsToCopy = [
-                                    "background-color",
-                                    "color",
-                                    "border-color",
-                                    "box-shadow",
-                                    "font-family",
-                                    "font-size",
-                                    "padding",
-                                    "margin",
-                                    "border-radius",
-                                    "border-width",
-                                    "border-style",
-                                    "line-height",
-                                    "text-transform",
-                                    "font-weight",
-                                    "letter-spacing",
-                                    "text-align",
-                                    "vertical-align"
-                                ];
-
-                                for (let i = 0; i < Math.min(originals.length, clones.length); i++) {
-                                    const o = originals[i];
-                                    const c = clones[i];
-                                    if (!o || !c) continue;
-                                    const computed = window.getComputedStyle(o);
-                                    propsToCopy.forEach((prop) => {
-                                        try {
-                                            const val = computed.getPropertyValue(prop);
-                                            if (val) c.style.setProperty(prop, val);
-                                        } catch (e) {
-                                            // ignore
-                                        }
-                                    });
-
-                                    c.style.setProperty("background-image", "none");
-                                    c.style.setProperty("box-shadow", "none");
-                                    c.style.setProperty("filter", "none");
-                                    c.style.setProperty("-webkit-backdrop-filter", "none");
-                                    c.style.setProperty("backdrop-filter", "none");
-                                }
-                            } catch (e) {
-                                console.warn("onclone fallback sanitization failed:", e);
-                            }
-                        }
-                    });
-                } catch (secondError) {
-                    // rethrow the original error chain for outer catch
-                    firstError.__fallback = secondError;
-                    throw firstError;
-                }
-            }
-        } finally {
-            dispose();
-        }
-
-        const blob = await canvasToBlob(canvas);
-        if (!blob) {
-            throw new Error("capture-failed");
-        }
-
-        const fileName = buildShareImageFileName(currentSharePayload.city);
-        const shareText = buildShareText(currentSharePayload);
-        const file = new File([blob], fileName, { type: "image/png" });
-
-        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-            await navigator.share({
-                title: `${t("shareTitlePrefix")} ${currentSharePayload.city}`,
-                text: shareText,
-                files: [file]
-            });
-            setStatus(t("shareImageSuccess"), "idle");
-            return;
-        }
-
-        downloadBlob(blob, fileName);
-        await copyTextToClipboard(shareText);
-        setStatus(t("shareImageFallbackSuccess"), "idle");
-    } catch (error) {
-        if (error?.name === "AbortError") {
-            return;
-        }
-        console.error("Failed to generate share image:", error);
-        setStatus(t("shareImageError"), "error");
-    }
-}
-
 async function handleCompareSubmit(event) {
     event.preventDefault();
     hideCompareCitySuggestions();
@@ -3978,191 +3833,8 @@ async function fetchImageAsDataUrl(url) {
     });
 }
 
-async function inlineImageForCapture(imageEl) {
-    if (!imageEl || !imageEl.src || imageEl.hidden) {
-        return;
-    }
-
-    imageEl.setAttribute("crossorigin", "anonymous");
-    imageEl.referrerPolicy = "no-referrer";
-
-    try {
-        const dataUrl = await fetchImageAsDataUrl(imageEl.src);
-        if (dataUrl) {
-            imageEl.src = dataUrl;
-            return;
-        }
-    } catch {
-        // Ignore and fallback below.
-    }
-
-    imageEl.remove();
-}
-
-async function createShareCaptureScene() {
-    const bodyStyles = window.getComputedStyle(document.body);
-    const cardBounds = weatherCardEl.getBoundingClientRect();
-    const sceneWidth = Math.max(340, Math.min(920, Math.ceil(cardBounds.width + 90)));
-    const captureBackgroundColor = bodyStyles.backgroundColor || "#0f172a";
-
-    const sceneEl = document.createElement("div");
-    sceneEl.style.position = "fixed";
-    sceneEl.style.left = "-12000px";
-    sceneEl.style.top = "0";
-    sceneEl.style.width = `${sceneWidth}px`;
-    sceneEl.style.padding = "34px";
-    sceneEl.style.borderRadius = "0";
-    sceneEl.style.overflow = "hidden";
-    sceneEl.style.background = bodyStyles.background;
-    sceneEl.style.backgroundColor = bodyStyles.backgroundColor;
-    sceneEl.style.color = bodyStyles.color;
-    sceneEl.style.fontFamily = bodyStyles.fontFamily;
-    sceneEl.style.display = "grid";
-    sceneEl.style.placeItems = "center";
-    sceneEl.style.boxSizing = "border-box";
-
-    const cardClone = weatherCardEl.cloneNode(true);
-    cardClone.classList.remove("is-loading");
-    cardClone.style.width = `${Math.ceil(cardBounds.width)}px`;
-    cardClone.style.maxWidth = "100%";
-    cardClone.style.overflow = "hidden";
-    cardClone.style.backgroundClip = "padding-box";
-    cardClone.style.backdropFilter = "none";
-    cardClone.style.webkitBackdropFilter = "none";
-
-    // Copy computed (resolved) styles from the original card to the clone to avoid css() functions
-    // (like `color()` or `color-mix`) that html2canvas cannot parse when styles rely on CSS functions.
-    function applyResolvedStylesFromSourceToTarget(sourceRoot, targetRoot) {
-        const sourceNodes = [sourceRoot].concat(Array.from(sourceRoot.querySelectorAll("*")));
-        const targetNodes = [targetRoot].concat(Array.from(targetRoot.querySelectorAll("*")));
-        const len = Math.min(sourceNodes.length, targetNodes.length);
-        const propsToCopy = [
-            "background-color",
-            "color",
-            "border-color",
-            "box-shadow",
-            "font-family",
-            "font-size",
-            "padding",
-            "margin",
-            "border-radius",
-            "border-width",
-            "border-style",
-            "line-height",
-            "width",
-            "height",
-            "text-transform",
-            "font-weight",
-            "letter-spacing",
-            "text-align",
-            "vertical-align"
-        ];
-
-        for (let i = 0; i < len; i++) {
-            try {
-                const src = sourceNodes[i];
-                const tgt = targetNodes[i];
-                const computed = window.getComputedStyle(src);
-
-                // Apply a safe set of resolved properties
-                propsToCopy.forEach((prop) => {
-                    const val = computed.getPropertyValue(prop);
-                    if (val) {
-                        tgt.style.setProperty(prop, val);
-                    }
-                });
-
-                // Force background-image removal (gradients often break html2canvas)
-                tgt.style.setProperty("background-image", "none");
-                // Ensure background-color is present
-                const bg = computed.getPropertyValue("background-color");
-                if (bg) {
-                    tgt.style.setProperty("background-color", bg);
-                }
-            } catch (e) {
-                // ignore per-node failures
-            }
-        }
-    }
-
-    applyResolvedStylesFromSourceToTarget(weatherCardEl, cardClone);
-
-    // Inline all images inside the cloned card to avoid CORS tainting during canvas capture.
-    const images = Array.from(cardClone.querySelectorAll("img"));
-    await Promise.all(images.map((img) => inlineImageForCapture(img)));
-
-    // Inject an overriding stylesheet into the scene to neutralize complex CSS functions
-    // (gradients, color-mix(), filters, pseudo-elements) which html2canvas can fail to parse.
-    const overrideStyle = document.createElement("style");
-    overrideStyle.textContent = `
-        #${sceneEl.id} *, #${sceneEl.id} *::before, #${sceneEl.id} *::after {
-            background-image: none !important;
-            background: none !important;
-            box-shadow: none !important;
-            filter: none !important;
-            -webkit-backdrop-filter: none !important;
-            backdrop-filter: none !important;
-            content: none !important;
-        }
-    `;
-    // Give sceneEl an id so the style is scoped reliably
-    if (!sceneEl.id) {
-        sceneEl.id = `share-capture-scene-${Date.now()}`;
-    }
-    sceneEl.appendChild(overrideStyle);
-
-    if (currentSharePayload?.sceneTag || currentSharePayload?.sceneRecommendation) {
-        const cinematicBlock = document.createElement("div");
-        cinematicBlock.style.marginTop = "16px";
-        cinematicBlock.style.borderRadius = "14px";
-        cinematicBlock.style.border = "1px solid rgba(255, 255, 255, 0.22)";
-        cinematicBlock.style.background = "rgba(255, 255, 255, 0.1)";
-        cinematicBlock.style.padding = "12px 14px";
-        cinematicBlock.style.display = "grid";
-        cinematicBlock.style.gap = "6px";
-
-        const cinematicTitle = document.createElement("strong");
-        cinematicTitle.textContent = t("shareImageCinematicTitle");
-        cinematicTitle.style.fontSize = "14px";
-
-        const cinematicSceneLine = document.createElement("p");
-        cinematicSceneLine.style.margin = "0";
-        cinematicSceneLine.style.fontSize = "13px";
-        cinematicSceneLine.style.lineHeight = "1.35";
-        cinematicSceneLine.textContent = t("shareLineScene", {
-            scene: currentSharePayload.sceneTag || t("cinematicSceneDefaultTag"),
-            score: Number.isFinite(currentSharePayload.sceneScore)
-                ? currentSharePayload.sceneScore
-                : t("unavailable")
-        });
-
-        const cinematicRecommendationLine = document.createElement("p");
-        cinematicRecommendationLine.style.margin = "0";
-        cinematicRecommendationLine.style.fontSize = "13px";
-        cinematicRecommendationLine.style.lineHeight = "1.35";
-        cinematicRecommendationLine.textContent = t("shareLineRecommendation", {
-            recommendation: currentSharePayload.sceneRecommendation || t("cinematicSceneRecommendationDefault")
-        });
-
-        cinematicBlock.append(cinematicTitle, cinematicSceneLine, cinematicRecommendationLine);
-        cardClone.appendChild(cinematicBlock);
-    }
-
-    sceneEl.appendChild(cardClone);
-    document.body.appendChild(sceneEl);
-
-    return {
-        sceneEl,
-        captureBackgroundColor,
-        dispose: () => {
-            sceneEl.remove();
-        }
-    };
-}
-
 function updateShareButtonsState(isEnabled) {
     shareTextButton.disabled = !isEnabled;
-    shareImageButton.disabled = !isEnabled;
 }
 
 function buildShareText(sharePayload) {
@@ -4266,36 +3938,6 @@ async function copyTextToClipboard(text) {
     textArea.select();
     document.execCommand("copy");
     document.body.removeChild(textArea);
-}
-
-function canvasToBlob(canvas) {
-    return new Promise((resolve) => {
-        canvas.toBlob((blob) => {
-            resolve(blob || null);
-        }, "image/png", 1);
-    });
-}
-
-function downloadBlob(blob, fileName) {
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = fileName;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
-}
-
-function buildShareImageFileName(cityName) {
-    const slug = cityName
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-zA-Z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .toLowerCase();
-
-    return `${t("shareFilePrefix")}-${slug || t("shareFileCityFallback")}.png`;
 }
 
 function updateUI(weatherData, options = {}) {

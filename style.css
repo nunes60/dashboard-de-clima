@@ -2,7 +2,7 @@
     --bg-color: #0f172a;
     --text-color: #f8fafc;
     --accent-color: #38bdf8;
-    --font-family: "DM Sans", sans-serif;
+    --font-family: "Manrope", sans-serif;
     --glass-effect: rgba(255, 255, 255, 0.14);
     --ui-card-bg: rgba(255, 255, 255, 0.14);
     --ui-panel-bg: color-mix(in srgb, var(--glass-effect) 80%, transparent);
@@ -2405,7 +2405,7 @@ body[data-scene="electric-night"] .scene-spark {
     --bg-color: linear-gradient(125deg, #0f172a 0%, #1f2937 55%, #0b1220 100%);
     --text-color: #f8fafc;
     --accent-color: #38bdf8;
-    --font-family: "DM Sans", sans-serif;
+    --font-family: "Manrope", sans-serif;
     --glass-effect: rgba(255, 255, 255, 0.14);
 }
 
@@ -2413,7 +2413,7 @@ body[data-scene="electric-night"] .scene-spark {
     --bg-color: linear-gradient(132deg, #ff8f2d 0%, #ffd167 45%, #ffefb6 100%);
     --text-color: #3f2308;
     --accent-color: #ff9f1c;
-    --font-family: "DM Sans", sans-serif;
+    --font-family: "Manrope", sans-serif;
     --glass-effect: rgba(255, 255, 255, 0.48);
 }
 
@@ -2426,7 +2426,7 @@ body[data-scene="electric-night"] .scene-spark {
     --bg-color: linear-gradient(150deg, #070f22 0%, #0f1f3f 45%, #1f365e 100%);
     --text-color: #e2ebff;
     --accent-color: #90caf9;
-    --font-family: "DM Sans", sans-serif;
+    --font-family: "Manrope", sans-serif;
     --glass-effect: rgba(14, 26, 51, 0.48);
 }
 
@@ -2452,7 +2452,7 @@ body[data-scene="electric-night"] .scene-spark {
     --bg-color: linear-gradient(160deg, #0a1e3d 0%, #163f6f 45%, #081225 100%);
     --text-color: #dbeafe;
     --accent-color: #60a5fa;
-    --font-family: "DM Sans", sans-serif;
+    --font-family: "Manrope", sans-serif;
     --glass-effect: rgba(19, 39, 64, 0.36);
 }
 
@@ -2472,7 +2472,7 @@ body[data-scene="electric-night"] .scene-spark {
     --bg-color: linear-gradient(145deg, #8a8f99 0%, #6f7480 40%, #50555f 100%);
     --text-color: #f4f2ef;
     --accent-color: #d4d0c8;
-    --font-family: "Spectral", serif;
+    --font-family: "Manrope", sans-serif;
     --glass-effect: rgba(64, 66, 74, 0.3);
 }
 
@@ -2484,7 +2484,7 @@ body[data-scene="electric-night"] .scene-spark {
     --bg-color: linear-gradient(145deg, #3a404a 0%, #2b3139 45%, #1f252d 100%);
     --text-color: #ece8e1;
     --accent-color: #b5c0ce;
-    --font-family: "Spectral", serif;
+    --font-family: "Manrope", sans-serif;
     --glass-effect: rgba(27, 33, 40, 0.38);
 }
 
@@ -2497,7 +2497,7 @@ body[data-scene="electric-night"] .scene-spark {
     --bg-color: linear-gradient(155deg, #d9ecff 0%, #b9d7f3 45%, #ecf5ff 100%);
     --text-color: #0b3653;
     --accent-color: #58a6dd;
-    --font-family: "DM Sans", sans-serif;
+    --font-family: "Manrope", sans-serif;
     --glass-effect: rgba(255, 255, 255, 0.44);
 }
 
@@ -2505,7 +2505,7 @@ body[data-scene="electric-night"] .scene-spark {
     --bg-color: linear-gradient(150deg, #0d2b44 0%, #1e4d74 45%, #113554 100%);
     --text-color: #e1f1ff;
     --accent-color: #94d0ff;
-    --font-family: "DM Sans", sans-serif;
+    --font-family: "Manrope", sans-serif;
     --glass-effect: rgba(16, 44, 68, 0.44);
 }
 
